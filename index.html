@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ローカル・ToDoリスト</title>
+    <style>
+        /* ====================================
+           CSS: スタイルと見た目の設定
+           ==================================== */
+        :root {
+            /* 配色を定義 */
+            --primary-color: #4A90E2; /* 青 */
+            --secondary-color: #50E3C2; /* ミントグリーン */
+            --bg-color: #F4F7F6; /* 薄い背景色 */
+            --text-color: #333;
+            --muted-color: #888;
+            --border-radius: 8px;
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+        }
+
+        .todo-container {
+            width: 100%;
+            max-width: 600px;
+            background-color: #fff;
+            padding: 30px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--primary-color);
+            margin-bottom: 30px;
+            font-size: 2em;
+        }
+
+        /* 新しいタスク追加フォーム */
+        .input-form {
+            display: flex;
+            margin-bottom: 20px;
+            gap: 10px;
+        }
+
+        #new-task-input {
+            flex-grow: 1;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: var(--border-radius);
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+
+        #new-task-input:focus {
+            border-color: var(--primary-color);
+            outline: none;
+        }
+
+        #add-task-btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: bold;
+            transition: background-color 0.3s, transform 0.1s;
+        }
+
+        #add-task-btn:hover {
+            background-color: #367DCC; /* 少し濃い色 */
+        }
+
+        #add-task-btn:active {
+            transform: scale(0.98);
+        }
+
+        /* ToDoリスト本体 */
+        .todo-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .todo-item {
+            display: flex;
+            align-items: center;
+            background-color: #fff;
+            padding: 15px 0;
+            border-bottom: 1px solid #eee;
+            transition: background-color 0.3s;
+        }
+
+        .todo-item:last-child {
+            border-bottom: none;
+        }
+
+        .todo-item:hover {
+            background-color: #f9f9f9;
+        }
+
+        .task-checkbox {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--primary-color);
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 15px;
+            display: grid;
+            place-content: center;
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+
+        .task-checkbox::before {
+            content: "";
+            width: 10px;
+            height: 10px;
+            clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 54%);
+            transform: scale(0);
+            transform-origin: bottom left;
+            transition: transform 0.3s;
+            background-color: white;
+        }
+
+        .task-checkbox:checked {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .task-checkbox:checked::before {
+            transform: scale(1);
+        }
+
+        .task-text {
+            flex-grow: 1;
+            font-size: 1.1em;
+            line-height: 1.5;
+            transition: text-decoration 0.3s, color 0.3s;
+        }
+
+        /* 完了したタスクのスタイル */
+        .todo-item.completed .task-text {
+            text-decoration: line-through;
+            color: var(--muted-color);
+        }
+
+        .todo-item.completed {
+            opacity: 0.7;
+        }
+
+        /* 削除ボタン */
+        .delete-btn {
+            background: none;
+            border: none;
+            color: #E24A4A; /* 赤 */
+            cursor: pointer;
+            font-size: 1.2em;
+            margin-left: 15px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .todo-item:hover .delete-btn {
+            opacity: 1;
+        }
+
+        .delete-btn:hover {
+            color: #CC3636;
+        }
+    </style>
+</head>
+<body>
+    <div class="todo-container">
+        <h1>✨ ローカル・ToDoリスト</h1>
+        
+        <div class="input-form">
+            <input type="text" id="new-task-input" placeholder="新しいタスクを入力してください..." maxlength="100">
+            <button id="add-task-btn">追加</button>
+        </div>
+
+        <ul class="todo-list" id="todo-list">
+            </ul>
+    </div>
+
+    <script>
+        /* ====================================
+           JavaScript: 動きと機能の設定
+           ==================================== */
+
+        // 必要なHTML要素を準備
+        const todoList = document.getElementById('todo-list');
+        const newTaskInput = document.getElementById('new-task-input');
+        const addTaskBtn = document.getElementById('add-task-btn');
+
+        // ToDoデータを保存するlocalStorageのキー
+        const STORAGE_KEY = 'localTodoListTasks';
+
+        /**
+         * 1. localStorageからデータを読み込む関数
+         * @returns {Array} タスクの配列。データがなければ空の配列を返す。
+         */
+        function loadTasks() {
+            // localStorageから文字列として保存されているデータを取得
+            const tasksJson = localStorage.getItem(STORAGE_KEY);
+            // JSON.parse()でJavaScriptの「オブジェクト（配列）」に戻す
+            return tasksJson ? JSON.parse(tasksJson) : [];
+        }
+
+        /**
+         * 2. localStorageにデータを保存する関数
+         * @param {Array} tasks - 保存するタスクの配列。
+         */
+        function saveTasks(tasks) {
+            // JSON.stringify()でJavaScriptの「配列」をlocalStorageに保存できる「文字列」に変換
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+        }
+
+        /**
+         * 3. タスクをHTMLとして描画する関数
+         * @param {object} task - {text: string, completed: boolean} 形式のタスクオブジェクト
+         */
+        function renderTask(task) {
+            // リストアイテム (<li>) を作成
+            const listItem = document.createElement('li');
+            listItem.className = 'todo-item';
+            
+            // タスクが完了済みなら 'completed' クラスを追加
+            if (task.completed) {
+                listItem.classList.add('completed');
+            }
+
+            // liの中身をHTMLとして設定
+            listItem.innerHTML = `
+                <input type="checkbox" class="task-checkbox" ${task.completed ? 'checked' : ''}>
+                <span class="task-text">${task.text}</span>
+                <button class="delete-btn">✖</button>
+            `;
+
+            // チェックボックスの動きを設定
+            const checkbox = listItem.querySelector('.task-checkbox');
+            checkbox.addEventListener('change', (e) => {
+                // チェックボックスの状態が変わったら、タスクの状態を更新して再保存
+                updateTaskStatus(task.text, e.target.checked);
+                // HTML上の見た目も更新
+                listItem.classList.toggle('completed', e.target.checked);
+            });
+
+            // 削除ボタンの動きを設定
+            const deleteBtn = listItem.querySelector('.delete-btn');
+            deleteBtn.addEventListener('click', () => {
+                // タスクを削除して再描画
+                deleteTask(task.text);
+            });
+
+            // ToDoリストのHTML要素に追加
+            todoList.appendChild(listItem);
+        }
+
+        /**
+         * 4. タスク一覧をすべて描画し直す関数
+         */
+        function renderTasksList() {
+            // 一旦、リストの中身を空にする
+            todoList.innerHTML = '';
+            // localStorageからタスクを読み込む
+            const tasks = loadTasks();
+            // 読み込んだタスクを一つずつrenderTask()で画面に表示
+            tasks.forEach(task => renderTask(task));
+        }
+
+        /**
+         * 5. 新しいタスクを追加する関数
+         */
+        function addTask() {
+            // 入力されたテキストを取得し、両端の空白を削除
+            const taskText = newTaskInput.value.trim();
+
+            if (taskText === '') {
+                alert('タスクを入力してください！');
+                return;
+            }
+
+            // タスクの重複チェック
+            const tasks = loadTasks();
+            if (tasks.some(t => t.text === taskText)) {
+                alert('そのタスクはすでに追加されています。');
+                return;
+            }
+
+            // 新しいタスクオブジェクトを作成
+            const newTask = {
+                text: taskText,
+                completed: false // 最初は未完了
+            };
+
+            // 既存のリストに新しいタスクを追加
+            tasks.push(newTask);
+            
+            // localStorageに保存
+            saveTasks(tasks);
+            
+            // 画面を再描画
+            renderTasksList();
+            
+            // 入力欄を空にする
+            newTaskInput.value = '';
+            newTaskInput.focus();
+        }
+        
+        /**
+         * 6. タスクの完了状態を更新する関数
+         * @param {string} taskText - 対象のタスクのテキスト
+         * @param {boolean} isCompleted - 新しい完了状態
+         */
+        function updateTaskStatus(taskText, isCompleted) {
+            const tasks = loadTasks();
+            // 対象のタスクを見つけてcompletedプロパティを更新
+            const taskToUpdate = tasks.find(t => t.text === taskText);
+            if (taskToUpdate) {
+                taskToUpdate.completed = isCompleted;
+                // localStorageに保存
+                saveTasks(tasks);
+            }
+        }
+        
+        /**
+         * 7. タスクを削除する関数
+         * @param {string} taskText - 対象のタスクのテキスト
+         */
+        function deleteTask(taskText) {
+            let tasks = loadTasks();
+            // 対象のタスクではないものだけを残す（＝対象のタスクを削除）
+            tasks = tasks.filter(t => t.text !== taskText);
+            
+            // localStorageに保存
+            saveTasks(tasks);
+            
+            // 画面を再描画
+            renderTasksList();
+        }
+
+        // ====================================
+        // 初期処理とイベントリスナーの設定
+        // ====================================
+
+        // ページが読み込まれたら、まずタスク一覧を描画
+        document.addEventListener('DOMContentLoaded', renderTasksList);
+
+        // 「追加」ボタンがクリックされたら、addTask関数を実行
+        addTaskBtn.addEventListener('click', addTask);
+
+        // 入力欄でEnterキーが押されたら、addTask関数を実行
+        newTaskInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                addTask();
+            }
+        });
+
+    </script>
+</body>
+</html>
